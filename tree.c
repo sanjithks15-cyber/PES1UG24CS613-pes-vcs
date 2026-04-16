@@ -146,12 +146,61 @@ static TempDir *tempdir_create(void) {
     return dir;
 }
 int tree_from_index(ObjectID *id_out) {
+    Index index;
+    if (index_load(&index) != 0)
+        return -1;
+
     TempDir *root = tempdir_create();
     if (!root)
         return -1;
 
-    (void)id_out;
-    (void)root;
+    for (int i = 0; i < index.count; i++) {
+        IndexEntry *entry = &index.entries[i];
 
+        char path[512];
+        strcpy(path, entry->path);
+
+        char *slash = strchr(path, '/');
+
+        if (!slash) {
+            TempNode *node = &root->nodes[root->count++];
+
+            strcpy(node->name, path);
+            node->mode = entry->mode;
+            node->hash = entry->id;
+            node->subdir = NULL;
+        } else {
+            *slash = '\0';
+
+            TempDir *subdir = NULL;
+
+            for (int j = 0; j < root->count; j++) {
+                if (strcmp(root->nodes[j].name, path) == 0 &&
+                    root->nodes[j].subdir != NULL) {
+                    subdir = root->nodes[j].subdir;
+                    break;
+                }
+            }
+
+            if (!subdir) {
+                TempNode *dirnode = &root->nodes[root->count++];
+
+                strcpy(dirnode->name, path);
+                dirnode->mode = MODE_DIR;
+                dirnode->subdir = tempdir_create();
+
+                subdir = dirnode->subdir;
+            }
+
+            TempNode *filenode = &subdir->nodes[subdir->count++];
+
+            strcpy(filenode->name, slash + 1);
+            filenode->mode = entry->mode;
+            filenode->hash = entry->id;
+            filenode->subdir = NULL;
+        }
+    }
+
+    (void)id_out;
     return -1;
 }
