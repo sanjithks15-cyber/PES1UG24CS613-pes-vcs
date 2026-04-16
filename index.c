@@ -272,7 +272,16 @@ int index_add(Index *index, const char *path) {
         strcpy(entry->path, path);
     }
 
-    entry->hash = hash;
+   entry->hash = hash;
+entry->mtime_sec = st.st_mtime;
+entry->size = st.st_size;
+
+if (st.st_mode & S_IXUSR)
+    entry->mode = 0100755;
+else
+    entry->mode = 0100644;
+
+return index_save(index); entry->hash = hash;
     entry->mtime_sec = st.st_mtime;
     entry->size = st.st_size;
 
