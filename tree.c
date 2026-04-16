@@ -8,14 +8,14 @@
 //
 // Example single entry (conceptual):
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
-
 #include "tree.h"
+#include "index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
+extern int index_load(Index *index) __attribute__((weak));
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
 #define MODE_FILE      0100644
@@ -190,6 +190,9 @@ static void free_tempdir(TempDir *dir) {
 }
 
 int tree_from_index(ObjectID *id_out) {
+    if (!index_load){
+    return -1;
+    }
     Index index;
     if (index_load(&index) != 0)
         return -1;
@@ -239,7 +242,7 @@ int tree_from_index(ObjectID *id_out) {
 
     strcpy(filenode->name, part);
     filenode->mode = entry->mode;
-    filenode->hash = entry->id;
+    filenode->hash = entry->hash;
     filenode->subdir = NULL;
 }
 
