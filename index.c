@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
+extern int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
@@ -149,14 +150,17 @@ if (!fp) {
     while (index->count < MAX_INDEX_ENTRIES) {
         IndexEntry *entry = &index->entries[index->count];
 
-        char hash_hex[HASH_HEX_SIZE + 1];
+       
 
-        int rc = fscanf(fp, "%o %64s %ld %zu %255s",
-                        &entry->mode,
-                        hash_hex,
-                        &entry->mtime_sec,
-                        &entry->size,
-                        entry->path);
+      char hash_hex[HASH_HEX_SIZE + 1];
+char path_buf[512];
+
+int rc = fscanf(fp, "%o %64s %ld %u %511s",
+                &entry->mode,
+                hash_hex,
+                &entry->mtime_sec,
+                &entry->size,
+                path_buf);
 
         if (rc == EOF)
             break;
@@ -165,6 +169,7 @@ if (!fp) {
             fclose(fp);
             return -1;
         }
+        snprintf(entry->path, sizeof(entry->path), "%s", path_buf);
 
         if (hex_to_hash(hash_hex, &entry->hash) != 0) {
             fclose(fp);
@@ -194,39 +199,47 @@ static int compare_index_entries(const void *a, const void *b) {
     return strcmp(ea->path, eb->path);
 }
 int index_save(const Index *index) {
-    Index sorted = *index;
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted)
+        return -1;
 
-    qsort(sorted.entries,
-          sorted.count,
+    *sorted = *index;
+
+    qsort(sorted->entries,
+          sorted->count,
           sizeof(IndexEntry),
           compare_index_entries);
 
     FILE *fp = fopen(".pes/index.tmp", "w");
-    if (!fp)
+    if (!fp) {
+        free(sorted);
         return -1;
+    }
 
-    for (int i = 0; i < sorted.count; i++) {
+    for (int i = 0; i < sorted->count; i++) {
         char hash_hex[HASH_HEX_SIZE + 1];
-        hash_to_hex(&sorted.entries[i].hash, hash_hex);
+        hash_to_hex(&sorted->entries[i].hash, hash_hex);
 
-        fprintf(fp, "%o %s %ld %zu %s\n",
-                sorted.entries[i].mode,
+        fprintf(fp, "%o %s %ld %u %s\n",
+                sorted->entries[i].mode,
                 hash_hex,
-                sorted.entries[i].mtime_sec,
-                sorted.entries[i].size,
-                sorted.entries[i].path);
+                sorted->entries[i].mtime_sec,
+                sorted->entries[i].size,
+                sorted->entries[i].path);
     }
 
     fflush(fp);
     fsync(fileno(fp));
     fclose(fp);
 
-    if (rename(".pes/index.tmp", INDEX_FILE) != 0)
+    if (rename(".pes/index.tmp", INDEX_FILE) != 0) {
+        free(sorted);
         return -1;
+    }
 
+    free(sorted);
     return 0;
 }
-
 // Stage a file for the next commit.
 //
 // HINTS - Useful functions and syscalls:
@@ -274,10 +287,10 @@ int index_add(Index *index, const char *path) {
             return -1;
 
         entry = &index->entries[index->count++];
-        strcpy(entry->path, path);
+        snprintf(entry->path, sizeof(entry->path), "%s", path);
     }
 
-   entry->hash = hash;
+ entry->hash = hash;
 entry->mtime_sec = st.st_mtime;
 entry->size = st.st_size;
 
@@ -286,9 +299,5 @@ if (st.st_mode & S_IXUSR)
 else
     entry->mode = 0100644;
 
-return index_save(index); entry->hash = hash;
-    entry->mtime_sec = st.st_mtime;
-    entry->size = st.st_size;
-
-    return 0;
+return index_save(index);
 }
