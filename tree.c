@@ -187,51 +187,49 @@ int tree_from_index(ObjectID *id_out) {
         return -1;
 
     for (int i = 0; i < index.count; i++) {
-        IndexEntry *entry = &index.entries[i];
+    IndexEntry *entry = &index.entries[i];
 
-        char path[512];
-        strcpy(path, entry->path);
+    char path[512];
+    strcpy(path, entry->path);
 
-        char *slash = strchr(path, '/');
+    TempDir *current = root;
 
-        if (!slash) {
-            TempNode *node = &root->nodes[root->count++];
+    char *part = strtok(path, "/");
+    char *next = strtok(NULL, "/");
 
-            strcpy(node->name, path);
-            node->mode = entry->mode;
-            node->hash = entry->id;
-            node->subdir = NULL;
-        } else {
-            *slash = '\0';
+    while (next) {
+        TempDir *subdir = NULL;
 
-            TempDir *subdir = NULL;
-
-            for (int j = 0; j < root->count; j++) {
-                if (strcmp(root->nodes[j].name, path) == 0 &&
-                    root->nodes[j].subdir != NULL) {
-                    subdir = root->nodes[j].subdir;
-                    break;
-                }
+        for (int j = 0; j < current->count; j++) {
+            if (strcmp(current->nodes[j].name, part) == 0 &&
+                current->nodes[j].subdir != NULL) {
+                subdir = current->nodes[j].subdir;
+                break;
             }
-
-            if (!subdir) {
-                TempNode *dirnode = &root->nodes[root->count++];
-
-                strcpy(dirnode->name, path);
-                dirnode->mode = MODE_DIR;
-                dirnode->subdir = tempdir_create();
-
-                subdir = dirnode->subdir;
-            }
-
-            TempNode *filenode = &subdir->nodes[subdir->count++];
-
-            strcpy(filenode->name, slash + 1);
-            filenode->mode = entry->mode;
-            filenode->hash = entry->id;
-            filenode->subdir = NULL;
         }
+
+        if (!subdir) {
+            TempNode *dirnode = &current->nodes[current->count++];
+
+            strcpy(dirnode->name, part);
+            dirnode->mode = MODE_DIR;
+            dirnode->subdir = tempdir_create();
+
+            subdir = dirnode->subdir;
+        }
+
+        current = subdir;
+        part = next;
+        next = strtok(NULL, "/");
     }
+
+    TempNode *filenode = &current->nodes[current->count++];
+
+    strcpy(filenode->name, part);
+    filenode->mode = entry->mode;
+    filenode->hash = entry->id;
+    filenode->subdir = NULL;
+}
 
    int result = write_tempdir(root, id_out);
 return result;
