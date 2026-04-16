@@ -1,3 +1,94 @@
+PES1UG24CS613
+SANJITH KS 
+
+## Q5.1
+
+A branch is just a file in `.pes/refs/heads/`. For `pes checkout <branch>`:
+
+* Read the commit hash from `.pes/refs/heads/<branch>`
+* Change `.pes/HEAD` to:
+
+  ```
+  ref: refs/heads/<branch>
+  ```
+* Read that commit’s tree and update the working directory to match it
+* Rewrite `.pes/index` to match the checked out files
+
+This is difficult because files may exist in one branch but not another, and local changes should not be overwritten.
+
+## Q5.2
+
+Before checkout, compare every tracked file with the index:
+
+* Compare current file size and mtime with the values in `.pes/index`
+* If they changed, recompute the file hash
+* If the file is modified locally and also different in the target branch, refuse checkout
+
+Example:
+
+```text
+Current branch: README = A
+Target branch: README = B
+Working directory: README = C
+```
+
+Since `C != A` and `B != A`, checkout should stop.
+
+## Q5.3
+
+Detached HEAD means `.pes/HEAD` stores a commit hash directly instead of a branch name.
+
+You can still make commits, but no branch points to them. If you switch away, those commits become unreachable.
+
+They can be recovered by creating a new branch that points to the commit hash.
+
+## Q6.1
+
+To find unreachable objects:
+
+* Start from every branch in `.pes/refs/heads/`
+* Follow commit → tree → blob links
+* Store every visited hash in a hash set
+* Delete any object in `.pes/objects/` that is not in the set
+
+A hash set is useful because lookup is fast.
+
+For 100,000 commits and 50 branches, garbage collection may need to visit a few hundred thousand objects.
+
+## Q6.2
+
+GC should not run while a commit is being created.
+
+Example:
+
+1. A new blob is written
+2. The commit has not yet been written
+3. GC runs and sees the blob is unreachable
+4. GC deletes it
+5. The commit is written and now points to a missing blob
+
+Git avoids this using lock files and by not deleting recently created objects immediately.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Building PES-VCS — A Version Control System from Scratch
 
 **Objective:** Build a local version control system that tracks file changes, stores snapshots efficiently, and supports commit history. Every component maps directly to operating system and filesystem concepts.
