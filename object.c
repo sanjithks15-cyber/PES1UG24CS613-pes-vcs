@@ -173,7 +173,23 @@ if (fsync(fd) != 0) {
 
 close(fd);
 
+char finalpath[512];
+object_path(id_out, finalpath, sizeof(finalpath));
+
+if (rename(temppath, finalpath) != 0) {
+    unlink(temppath);
+    free(full_object);
+    return -1;
+}
+
+int dirfd = open(dirpath, O_RDONLY);
+if (dirfd >= 0) {
+    fsync(dirfd);
+    close(dirfd);
+}
+
 free(full_object);
+return 0;
 return -1;
 
    
