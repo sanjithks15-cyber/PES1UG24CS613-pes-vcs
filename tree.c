@@ -129,9 +129,29 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+typedef struct TempNode {
+    char name[256];
+    uint32_t mode;
+    ObjectID hash;
+    struct TempDir *subdir;
+} TempNode;
+
+typedef struct TempDir {
+    TempNode nodes[MAX_TREE_ENTRIES];
+    int count;
+} TempDir;
+
+static TempDir *tempdir_create(void) {
+    TempDir *dir = calloc(1, sizeof(TempDir));
+    return dir;
+}
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
+    TempDir *root = tempdir_create();
+    if (!root)
+        return -1;
+
     (void)id_out;
+    (void)root;
+
     return -1;
 }
