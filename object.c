@@ -220,4 +220,102 @@ return -1;
 
 
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
+    char path[512];
+    object_path(id, path, sizeof(path));
+
+    FILE *fp = fopen(path, "rb");
+    if (!fp)
+        return -1;
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return -1;
+    }
+
+    long file_size = ftell(fp);
+    if (file_size < 0) {
+        fclose(fp);
+        return -1;
+    }
+
+    rewind(fp);
+
+    unsigned char *buffer = malloc(file_size);
+    if (!buffer) {
+        fclose(fp);
+        return -1;
+    }
+
+    if (fread(buffer, 1, file_size, fp) != (size_t)file_size) {
+        free(buffer);
+        fclose(fp);
+        return -1;
+    }
+
+    fclose(fp);
+
+    ObjectID computed;
+    compute_hash(buffer, file_size, &computed);
+
+    if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) {
+        free(buffer);
+        return -1;
+    }
+
+    unsigned char *nul = memchr(buffer, '\0', file_size);
+    if (!nul) {
+        free(buffer);
+        return -1;
+    }
+
+    size_t header_len = nul - buffer;
+
+    char header[64];
+    if (header_len >= sizeof(header)) {
+        free(buffer);
+        return -1;
+    }
+
+    memcpy(header, buffer, header_len);
+    header[header_len] = '\0';
+
+    char type_str[16];
+    size_t declared_size;
+
+    if (sscanf(header, "%15s %zu", type_str, &declared_size) != 2) {
+        free(buffer);
+        return -1;
+    }
+
+    if (strcmp(type_str, "blob") == 0) {
+        *type_out = OBJ_BLOB;
+    } else if (strcmp(type_str, "tree") == 0) {
+        *type_out = OBJ_TREE;
+    } else if (strcmp(type_str, "commit") == 0) {
+        *type_out = OBJ_COMMIT;
+    } else {
+        free(buffer);
+        return -1;
+    }
+
+    unsigned char *data_start = nul + 1;
+    size_t actual_size = file_size - (data_start - buffer);
+
+    if (actual_size != declared_size) {
+        free(buffer);
+        return -1;
+    }
+
+    *data_out = malloc(actual_size);
+    if (!*data_out) {
+        free(buffer);
+        return -1;
+    }
+
+    memcpy(*data_out, data_start, actual_size);
+    *len_out = actual_size;
+
+    free(buffer);
+    return 0;
+}
    
