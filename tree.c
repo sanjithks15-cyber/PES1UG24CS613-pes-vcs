@@ -177,6 +177,18 @@ static int write_tempdir(TempDir *dir, ObjectID *id_out) {
     return result;
 }
 
+static void free_tempdir(TempDir *dir) {
+    if (!dir)
+        return;
+
+    for (int i = 0; i < dir->count; i++) {
+        if (dir->nodes[i].subdir)
+            free_tempdir(dir->nodes[i].subdir);
+    }
+
+    free(dir);
+}
+
 int tree_from_index(ObjectID *id_out) {
     Index index;
     if (index_load(&index) != 0)
@@ -231,5 +243,7 @@ int tree_from_index(ObjectID *id_out) {
     filenode->subdir = NULL;
 }
 
-   int result = write_tempdir(root, id_out);
+  int result = write_tempdir(root, id_out);
+free_tempdir(root);
 return result;
+}
