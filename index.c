@@ -138,8 +138,13 @@ int index_load(Index *index) {
     index->count = 0;
 
     FILE *fp = fopen(INDEX_FILE, "r");
-    if (!fp)
+if (!fp) {
+    if (access(INDEX_FILE, F_OK) != 0) {
+        index->count = 0;
         return 0;
+    }
+    return -1;
+}
 
     while (index->count < MAX_INDEX_ENTRIES) {
         IndexEntry *entry = &index->entries[index->count];
