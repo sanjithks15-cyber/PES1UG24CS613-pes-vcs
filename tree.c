@@ -145,6 +145,38 @@ static TempDir *tempdir_create(void) {
     TempDir *dir = calloc(1, sizeof(TempDir));
     return dir;
 }
+
+static int write_tempdir(TempDir *dir, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    for (int i = 0; i < dir->count; i++) {
+        TempNode *node = &dir->nodes[i];
+        TreeEntry *entry = &tree.entries[tree.count++];
+
+        strcpy(entry->name, node->name);
+        entry->mode = node->mode;
+
+        if (node->subdir) {
+            if (write_tempdir(node->subdir, &entry->hash) != 0)
+                return -1;
+        } else {
+            entry->hash = node->hash;
+        }
+    }
+
+    void *data;
+    size_t len;
+
+    if (tree_serialize(&tree, &data, &len) != 0)
+        return -1;
+
+    int result = object_write(OBJ_TREE, data, len, id_out);
+
+    free(data);
+    return result;
+}
+
 int tree_from_index(ObjectID *id_out) {
     Index index;
     if (index_load(&index) != 0)
@@ -201,6 +233,5 @@ int tree_from_index(ObjectID *id_out) {
         }
     }
 
-    (void)id_out;
-    return -1;
-}
+   int result = write_tempdir(root, id_out);
+return result;
