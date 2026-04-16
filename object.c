@@ -130,9 +130,53 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         free(full_object);
         return 0;
     }
+    char hex[HASH_HEX_SIZE + 1];
+hash_to_hex(id_out, hex);
 
+char dirpath[512];
+snprintf(dirpath, sizeof(dirpath), "%s/%.2s", OBJECTS_DIR, hex);
+
+if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) {
     free(full_object);
     return -1;
+}
+
+char temppath[512];
+snprintf(temppath, sizeof(temppath), "%s/tmp-%d", dirpath, getpid());
+
+int fd = open(temppath, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+if (fd < 0) {
+    free(full_object);
+    return -1;
+}
+
+size_t written = 0;
+while (written < total_len) {
+    ssize_t n = write(fd,
+                      full_object + written,
+                      total_len - written);
+    if (n <= 0) {
+        close(fd);
+        unlink(temppath);
+        free(full_object);
+        return -1;
+    }
+    written += n;
+}
+
+if (fsync(fd) != 0) {
+    close(fd);
+    unlink(temppath);
+    free(full_object);
+    return -1;
+}
+
+close(fd);
+
+free(full_object);
+return -1;
+
+   
 }
 
 // Read an object from the store.
